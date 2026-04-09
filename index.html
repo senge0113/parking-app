@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1989fa">
+  <title>厂区停车管理</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vant@4/lib/index.css"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;background:#f5f6fa;-webkit-tap-highlight-color:transparent}
+    #app{max-width:480px;margin:0 auto;min-height:100vh;background:#f5f6fa}
+    .page{padding-bottom:70px;min-height:100vh}
+    .stat-bar{display:flex;background:#fff;padding:14px 0 10px;border-bottom:1px solid #f0f0f0}
+    .stat-item{flex:1;text-align:center}
+    .stat-num{font-size:24px;font-weight:800;line-height:1}
+    .stat-num.green{color:#07c160}.stat-num.red{color:#ee0a24}.stat-num.blue{color:#1989fa}
+    .stat-label{font-size:11px;color:#999;margin-top:4px}
+    .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+    .quick-btn{border-radius:14px;padding:18px 12px;text-align:center;cursor:pointer}
+    .quick-btn:active{transform:scale(0.97)}
+    .quick-btn .q-icon{font-size:30px;margin-bottom:6px}
+    .quick-btn .q-label{font-size:14px;font-weight:700;color:#fff}
+    .quick-btn .q-sub{font-size:11px;color:rgba(255,255,255,.8);margin-top:2px}
+    .btn-park{background:linear-gradient(135deg,#1989fa,#39a0ff)}
+    .btn-find{background:linear-gradient(135deg,#07c160,#1dd376)}
+    .btn-leave{background:linear-gradient(135deg,#ff6034,#ff976a)}
+    .btn-map{background:linear-gradient(135deg,#7232dd,#a259ff)}
+    .zone-wrap{background:#fff;margin:0 0 8px;padding:14px 12px}
+    .zone-header{display:flex;align-items:center;margin-bottom:10px}
+    .zone-name{font-size:15px;font-weight:700;color:#1a1a1a}
+    .zone-badge{margin-left:8px;font-size:11px;color:#999;background:#f5f5f5;border-radius:10px;padding:2px 8px}
+    .spots-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+    .spot{border-radius:7px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid transparent;transition:all .15s;padding:2px;user-select:none}
+    .spot.empty{background:#e8f5e9;border-color:#81c784}
+    .spot.occupied{background:#ffebee;border-color:#ef9a9a}
+    .spot.selected{border-color:#1989fa!important;box-shadow:0 0 0 2px rgba(25,137,250,.35);background:#e3f2fd!important}
+    .spot.disabled{opacity:.45;cursor:not-allowed}
+    .spot-num{font-size:11px;font-weight:700;color:#333;line-height:1.2;text-align:center}
+    .spot-pl{font-size:9px;color:#888;line-height:1.2;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .find-result{margin:12px;border-radius:14px;overflow:hidden;text-align:center}
+    .find-result.found{background:linear-gradient(135deg,#07c160,#1dd376);color:#fff;padding:24px 16px}
+    .find-result.not-found{background:#f5f5f5;padding:24px 16px;color:#999}
+    .find-spot{font-size:38px;font-weight:900;letter-spacing:2px;margin:6px 0}
+    .find-zone{font-size:15px;opacity:.9}
+    .history-row{padding:11px 16px;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:10px}
+    .history-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .dot-park{background:#07c160}.dot-leave{background:#ee0a24}
+    .history-plate{font-size:15px;font-weight:700;color:#1a1a1a}
+    .history-meta{font-size:12px;color:#aaa;margin-top:2px}
+    .sec-title{font-size:13px;color:#999;padding:10px 16px 6px;font-weight:500}
+    .card{background:#fff;margin:8px;border-radius:12px;overflow:hidden}
+    .empty-tip{text-align:center;padding:30px 0;color:#ccc;font-size:13px}
+    .legend{display:flex;gap:12px;align-items:center;font-size:12px;color:#888;margin-left:auto}
+    .leg-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+    .leg-empty{background:#81c784}.leg-occ{background:#ef9a9a}
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 首页 -->
+  <div v-if="page==='home'" class="page">
+    <van-nav-bar title="厂区停车管理" fixed placeholder>
+      <template #right><van-icon name="replay" @click="refreshAll" style="font-size:18px"/></template>
+    </van-nav-bar>
+    <div class="stat-bar">
+      <div class="stat-item"><div class="stat-num green">{{stats.available}}</div><div class="stat-label">空闲车位</div></div>
+      <div class="stat-item"><div class="stat-num red">{{stats.occupied}}</div><div class="stat-label">已占用</div></div>
+      <div class="stat-item"><div class="stat-num blue">{{stats.total}}</div><div class="stat-label">总车位数</div></div>
+    </div>
+    <div class="quick-grid">
+      <div class="quick-btn btn-park" @click="goPage('park')"><div class="q-icon">🚗</div><div class="q-label">停车登记</div><div class="q-sub">记录车辆位置</div></div>
+      <div class="quick-btn btn-find" @click="goPage('find')"><div class="q-icon">🔍</div><div class="q-label">快速找车</div><div class="q-sub">输入车牌即可找到</div></div>
+      <div class="quick-btn btn-leave" @click="goPage('leave')"><div class="q-icon">🚪</div><div class="q-label">出场登记</div><div class="q-sub">车辆离开厂区</div></div>
+      <div class="quick-btn btn-map" @click="goPage('map')"><div class="q-icon">🗺️</div><div class="q-label">停车场地图</div><div class="q-sub">查看实时车位图</div></div>
+    </div>
+    <div class="sec-title">最近进出记录</div>
+    <div class="card">
+      <div v-for="item in recentHistory" :key="item.id" class="history-row">
+        <div class="history-dot" :class="item.action==='park'?'dot-park':'dot-leave'"></div>
+        <div style="flex:1;min-width:0">
+          <div class="history-plate">{{item.plate}}</div>
+          <div class="history-meta">{{item.spot_code}} · {{item.operator||'—'}} · {{fmtTime(item.created_at)}}</div>
+        </div>
+        <van-tag :type="item.action==='park'?'success':'danger'" size="small">{{item.action==='park'?'停车':'出场'}}</van-tag>
+      </div>
+      <div v-if="!recentHistory.length" class="empty-tip">暂无记录</div>
+    </div>
+  </div>
+
+  <!-- 地图 -->
+  <div v-else-if="page==='map'" class="page">
+    <van-nav-bar title="停车场地图" fixed placeholder left-arrow @click-left="goPage('home')">
+      <template #right><div class="legend"><span><span class="leg-dot leg-empty"></span> 空闲</span><span><span class="leg-dot leg-occ"></span> 占用</span></div></template>
+    </van-nav-bar>
+    <div class="stat-bar">
+      <div class="stat-item"><div class="stat-num green">{{stats.available}}</div><div class="stat-label">空位</div></div>
+      <div class="stat-item"><div class="stat-num red">{{stats.occupied}}</div><div class="stat-label">占用</div></div>
+      <div class="stat-item"><div class="stat-num blue">{{stats.total}}</div><div class="stat-label">总计</div></div>
+    </div>
+    <div v-for="zone in spotsByZone" :key="zone.name" class="zone-wrap">
+      <div class="zone-header">
+        <span class="zone-name">{{zone.name}}</span>
+        <span class="zone-badge">空闲 {{zone.spots.filter(s=>!s.plate).length}}/{{zone.spots.length}}</span>
+      </div>
+      <div class="spots-grid">
+        <div v-for="s in zone.spots" :key="s.code" class="spot" :class="{empty:!s.plate,occupied:!!s.plate}" @click="openSpotDetail(s)">
+          <div style="font-size:13px">{{s.plate?'🚗':''}}</div>
+          <div class="spot-num">{{shortCode(s.code)}}</div>
+          <div class="spot-pl" v-if="s.plate">{{s.plate.slice(-4)}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 停车登记 -->
+  <div v-else-if="page==='park'" class="page">
+    <van-nav-bar title="停车登记" fixed placeholder left-arrow @click-left="goPage('home')" />
+    <van-cell-group inset style="margin:12px 12px 0">
+      <van-field v-model="parkForm.operator" label="操作人" placeholder="请输入您的姓名（可选）" clearable />
+      <van-field v-model="parkForm.plateInput" label="车牌号" placeholder="输入车牌搜索" clearable @input="onPlateInput" @focus="showSug=true" />
+    </van-cell-group>
+    <div v-if="showSug && plateSuggestions.length" style="margin:0 12px;background:#fff;border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,.1);position:relative;z-index:10">
+      <van-cell v-for="v in plateSuggestions" :key="v.plate" :title="v.plate" :label="v.owner?('负责人: '+v.owner):''" is-link @click="selectPlate(v.plate)" />
+    </div>
+    <van-notice-bar v-if="parkForm.plate" color="#07c160" background="#e8f5e9" :text="'已选：'+parkForm.plate+(parkForm.preSpot?' → 预选 '+parkForm.preSpot:'')" style="margin:8px 12px;border-radius:8px" />
+    <div class="sec-title">选择停车位 <span style="color:#aaa;font-size:11px">点击绿色空位</span></div>
+    <div v-for="zone in spotsByZone" :key="zone.name" class="zone-wrap" style="margin:0 0 6px">
+      <div class="zone-header"><span class="zone-name">{{zone.name}}</span><span class="zone-badge">空 {{zone.spots.filter(s=>!s.plate).length}}</span></div>
+      <div class="spots-grid">
+        <div v-for="s in zone.spots" :key="s.code" class="spot"
+          :class="{empty:!s.plate,occupied:!!s.plate,selected:parkForm.selectedSpot===s.code,disabled:!!s.plate}"
+          @click="!s.plate&&selectSpot(s.code)">
+          <div class="spot-num">{{shortCode(s.code)}}</div>
+          <div class="spot-pl" v-if="s.plate">{{s.plate.slice(-4)}}</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px">
+      <van-button type="primary" block round size="large" :disabled="!(parkForm.plate||parkForm.plateInput)||!parkForm.selectedSpot" @click="submitPark">
+        确认停车 {{parkForm.selectedSpot?'→ '+parkForm.selectedSpot:''}}
+      </van-button>
+    </div>
+  </div>
+
+  <!-- 找车 -->
+  <div v-else-if="page==='find'" class="page">
+    <van-nav-bar title="找车" fixed placeholder left-arrow @click-left="goPage('home')" />
+    <van-search v-model="findInput" placeholder="输入车牌号查找" show-action action-text="查找" @search="doFind" @click-action="doFind" style="padding:12px 16px" />
+    <div v-if="findResult!==null" class="find-result" :class="{found:findResult.found,'not-found':!findResult.found}">
+      <template v-if="findResult.found">
+        <div style="font-size:13px;opacity:.9">车辆已找到</div>
+        <div class="find-spot">{{findResult.spot_code}}</div>
+        <div class="find-zone">{{findResult.zone_name}}</div>
+        <div style="margin-top:8px;font-size:12px;opacity:.8">停入时间：{{fmtTime(findResult.parked_at)}}</div>
+      </template>
+      <template v-else>
+        <div style="font-size:36px">🔍</div>
+        <div style="font-size:16px;margin-top:8px;font-weight:600">未找到该车辆</div>
+        <div style="font-size:12px;margin-top:4px">可能已出场或尚未登记</div>
+      </template>
+    </div>
+    <div class="sec-title">当前在场车辆（点击直接查找）</div>
+    <div class="card">
+      <van-cell v-for="item in currentList" :key="item.plate" :title="item.plate" :label="'停入：'+fmtTime(item.parked_at)" :value="item.spot_code" is-link @click="findInput=item.plate;doFind()" />
+      <div v-if="!currentList.length" class="empty-tip">当前无停放车辆</div>
+    </div>
+  </div>
+
+  <!-- 出场登记 -->
+  <div v-else-if="page==='leave'" class="page">
+    <van-nav-bar title="出场登记" fixed placeholder left-arrow @click-left="goPage('home')" />
+    <van-cell-group inset style="margin:12px 12px 0">
+      <van-field v-model="leaveForm.operator" label="操作人" placeholder="请输入您的姓名（可选）" clearable />
+      <van-field v-model="leaveForm.plateInput" label="车牌号" placeholder="输入或从下方选择" clearable @input="leaveForm.plate=''" />
+    </van-cell-group>
+    <div class="sec-title">点击选择出场车辆</div>
+    <div class="card">
+      <van-cell v-for="item in filteredCurrent" :key="item.plate" :title="item.plate" :label="item.spot_code+' · '+fmtTime(item.parked_at)" is-link @click="leaveForm.plate=item.plate;leaveForm.plateInput=item.plate">
+        <template #right-icon><van-icon v-if="leaveForm.plate===item.plate" name="success" color="#07c160"/></template>
+      </van-cell>
+      <div v-if="!filteredCurrent.length" class="empty-tip">没有匹配的在场车辆</div>
+    </div>
+    <div style="padding:16px">
+      <van-button type="danger" block round size="large" :disabled="!(leaveForm.plate||leaveForm.plateInput)" @click="submitLeave">确认出场</van-button>
+    </div>
+  </div>
+
+  <!-- 更多 -->
+  <div v-else-if="page==='more'" class="page">
+    <van-nav-bar title="更多功能" fixed placeholder />
+    <van-cell-group inset style="margin:16px 12px 0" title="管理功能">
+      <van-cell title="🚙  车辆台账" label="添加/删除常驻车辆" is-link @click="goPage('vehicles')" />
+      <van-cell title="📋  进出历史" label="查询车辆进出记录" is-link @click="goPage('history')" />
+      <van-cell title="🅿️  车位管理" label="添加/删除车位" is-link @click="goPage('spotmgr')" />
+    </van-cell-group>
+    <div style="text-align:center;padding:20px;color:#ccc;font-size:12px">厂区停车管理系统 v2.0</div>
+  </div>
+
+  <!-- 车辆台账 -->
+  <div v-else-if="page==='vehicles'" class="page">
+    <van-nav-bar title="车辆台账" fixed placeholder left-arrow @click-left="goPage('more')">
+      <template #right><van-icon name="plus" size="18" @click="showAddVehicleDlg=true"/></template>
+    </van-nav-bar>
+    <van-search v-model="vSearch" placeholder="搜索车牌/负责人" style="padding:8px 12px" />
+    <div class="card">
+      <van-cell v-for="v in filteredVehicles" :key="v.plate" :title="v.plate" :label="[v.type,v.owner].filter(Boolean).join(' · ')||'无备注'">
+        <template #right-icon><van-icon name="delete-o" color="#ee0a24" size="18" @click.stop="delVehicle(v.plate)"/></template>
+      </van-cell>
+      <div v-if="!filteredVehicles.length" class="empty-tip">暂无车辆，点右上角添加</div>
+    </div>
+  </div>
+
+  <!-- 历史记录 -->
+  <div v-else-if="page==='history'" class="page">
+    <van-nav-bar title="进出历史" fixed placeholder left-arrow @click-left="goPage('more')" />
+    <div class="card">
+      <div v-for="item in history" :key="item.id" class="history-row">
+        <div class="history-dot" :class="item.action==='park'?'dot-park':'dot-leave'"></div>
+        <div style="flex:1;min-width:0">
+          <div class="history-plate">{{item.plate}}</div>
+          <div class="history-meta">{{item.spot_code}} · {{item.operator||'—'}} · {{fmtTime(item.created_at)}}</div>
+        </div>
+        <van-tag :type="item.action==='park'?'success':'danger'" size="small">{{item.action==='park'?'停车':'出场'}}</van-tag>
+      </div>
+      <div v-if="!history.length" class="empty-tip">暂无记录</div>
+    </div>
+  </div>
+
+  <!-- 车位管理 -->
+  <div v-else-if="page==='spotmgr'" class="page">
+    <van-nav-bar title="车位管理" fixed placeholder left-arrow @click-left="goPage('more')" />
+    <van-cell-group inset style="margin:12px" title="添加车位">
+      <van-field v-model="newSpot.zone" label="所属区域" placeholder="如：A区" clearable />
+      <van-field v-model="newSpot.code" label="车位编号" placeholder="如：A区-21" clearable />
+      <van-button type="primary" block size="small" style="margin:8px 0" @click="addSpot">添加车位</van-button>
+    </van-cell-group>
+    <div v-for="zone in spotsByZone" :key="zone.name" class="zone-wrap">
+      <div class="zone-header"><span class="zone-name">{{zone.name}}</span><span class="zone-badge">{{zone.spots.length}} 个</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <van-tag v-for="s in zone.spots" :key="s.code" :type="s.plate?'danger':'success'" size="medium" closeable @close="delSpot(s)">{{s.code}}</van-tag>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部导航 -->
+  <van-tabbar v-model="activeTab" @change="onTab" fixed safe-area-inset-bottom>
+    <van-tabbar-item icon="home-o">首页</van-tabbar-item>
+    <van-tabbar-item icon="map-marked">地图</van-tabbar-item>
+    <van-tabbar-item icon="search">找车</van-tabbar-item>
+    <van-tabbar-item icon="more-o">更多</van-tabbar-item>
+  </van-tabbar>
+
+  <!-- 车位详情弹窗 -->
+  <van-popup v-model:show="spotDlg.show" position="bottom" round safe-area-inset-bottom style="padding:20px 20px 28px">
+    <div v-if="spotDlg.spot" style="text-align:center">
+      <div style="font-size:22px;font-weight:800;margin-bottom:6px">{{spotDlg.spot.code}}</div>
+      <template v-if="spotDlg.spot.plate">
+        <van-tag type="danger" size="large" style="margin-bottom:10px">已占用</van-tag>
+        <div style="font-size:24px;font-weight:700;color:#1a1a1a;margin:8px 0">{{spotDlg.spot.plate}}</div>
+        <div style="font-size:12px;color:#999">停入：{{fmtTime(spotDlg.spot.parked_at)}}</div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <van-button type="primary" block @click="parkAtSpot(spotDlg.spot.code)">停入其他车</van-button>
+          <van-button type="danger" block @click="quickLeave(spotDlg.spot.plate)">出场</van-button>
+        </div>
+      </template>
+      <template v-else>
+        <van-tag type="success" size="large" style="margin-bottom:16px">空闲</van-tag>
+        <van-button type="primary" block @click="parkAtSpot(spotDlg.spot.code)">在此停车</van-button>
+      </template>
+    </div>
+  </van-popup>
+
+  <!-- 添加车辆弹窗 -->
+  <van-popup v-model:show="showAddVehicleDlg" position="bottom" round safe-area-inset-bottom style="padding:20px 20px 28px">
+    <div style="font-size:17px;font-weight:700;margin-bottom:14px">添加车辆</div>
+    <van-cell-group inset>
+      <van-field v-model="newVehicle.plate" label="车牌号" placeholder="必填" clearable />
+      <van-field v-model="newVehicle.type" label="车型" placeholder="选填，如轿车、货车" clearable />
+      <van-field v-model="newVehicle.owner" label="负责人" placeholder="选填" clearable />
+    </van-cell-group>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <van-button block @click="showAddVehicleDlg=false">取消</van-button>
+      <van-button type="primary" block @click="addVehicle">确认添加</van-button>
+    </div>
+  </van-popup>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vant@4/lib/vant.min.js"></script>
+<script>
+// ── Supabase 配置 ──────────────────────────────────────
+const SB_URL = 'https://aikigwdmlicrwtyluton.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFucmhzeXJ2a2Vsdm9xeXRhaWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MTg0OTMsImV4cCI6MjA5MTI5NDQ5M30.5GXEZyyefugknG9Zoalq8IV4bEYw5p4w3KIDjW1vM8s';
+const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' };
+
+const sb = {
+  async get(table, q='') {
+    const r = await fetch(`${SB_URL}/rest/v1/${table}${q}`, { headers: H });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async post(table, data, prefer='return=minimal') {
+    const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+      method: 'POST', headers: { ...H, 'Prefer': prefer }, body: JSON.stringify(data)
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.message || '操作失败'); }
+    return r.status === 204 ? null : r.json();
+  },
+  async del(table, q) {
+    await fetch(`${SB_URL}/rest/v1/${table}${q}`, { method: 'DELETE', headers: H });
+  }
+};
+
+const api = {
+  async getSpots() {
+    const rows = await sb.get('spots', '?select=*,current_parking(plate,operator,parked_at)&order=zone_name,display_order');
+    return rows.map(s => ({
+      ...s,
+      plate: s.current_parking[0]?.plate || null,
+      operator: s.current_parking[0]?.operator || null,
+      parked_at: s.current_parking[0]?.parked_at || null
+    }));
+  },
+  async getStats() {
+    const [spots, occ, vehs] = await Promise.all([
+      sb.get('spots', '?select=code'),
+      sb.get('current_parking', '?select=spot_code'),
+      sb.get('vehicles', '?select=plate')
+    ]);
+    return { total: spots.length, occupied: occ.length, available: spots.length - occ.length, vehicles: vehs.length };
+  },
+  async getVehicles() { return sb.get('vehicles', '?order=plate'); },
+  async getHistory(n=100) { return sb.get('parking_history', `?order=created_at.desc&limit=${n}`); },
+  async getCurrent() {
+    const rows = await sb.get('current_parking', '?select=*,spots(zone_name)&order=parked_at.desc');
+    return rows.map(r => ({ ...r, zone_name: r.spots?.zone_name || '' }));
+  },
+  async find(plate) {
+    const rows = await sb.get('current_parking', `?plate=eq.${encodeURIComponent(plate)}&select=*,spots(zone_name)`);
+    if (!rows.length) return { found: false };
+    const r = rows[0];
+    return { found: true, ...r, zone_name: r.spots?.zone_name || '' };
+  },
+  async park(plate, spot_code, operator) {
+    const atSpot = await sb.get('current_parking', `?spot_code=eq.${encodeURIComponent(spot_code)}`);
+    if (atSpot.length > 0 && atSpot[0].plate !== plate) throw new Error(`该车位已被 ${atSpot[0].plate} 占用`);
+    const prev = await sb.get('current_parking', `?plate=eq.${encodeURIComponent(plate)}`);
+    if (prev.length > 0) {
+      await sb.del('current_parking', `?plate=eq.${encodeURIComponent(plate)}`);
+      await sb.post('parking_history', { plate, spot_code: prev[0].spot_code, action: 'leave', operator: operator || '系统移车' });
+    }
+    await sb.post('current_parking', { spot_code, plate, operator: operator || '', parked_at: new Date().toISOString() }, 'resolution=merge-duplicates');
+    await sb.post('parking_history', { plate, spot_code, action: 'park', operator: operator || '' });
+  },
+  async leave(plate, operator) {
+    const rows = await sb.get('current_parking', `?plate=eq.${encodeURIComponent(plate)}`);
+    if (rows.length > 0) {
+      await sb.del('current_parking', `?plate=eq.${encodeURIComponent(plate)}`);
+      await sb.post('parking_history', { plate, spot_code: rows[0].spot_code, action: 'leave', operator: operator || '' });
+      return rows[0].spot_code;
+    }
+    return null;
+  },
+  async addVehicle(plate, type, owner) { await sb.post('vehicles', { plate, type: type || '', owner: owner || '' }); },
+  async delVehicle(plate) { await sb.del('vehicles', `?plate=eq.${encodeURIComponent(plate)}`); },
+  async addSpot(code, zone_name) {
+    const ex = await sb.get('spots', `?zone_name=eq.${encodeURIComponent(zone_name)}&order=display_order.desc&limit=1`);
+    const ord = ex.length > 0 ? ex[0].display_order + 1 : 1;
+    await sb.post('spots', { code, zone_name, display_order: ord });
+  },
+  async delSpot(code) {
+    const occ = await sb.get('current_parking', `?spot_code=eq.${encodeURIComponent(code)}`);
+    if (occ.length > 0) throw new Error('车位有车辆停放，无法删除');
+    await sb.del('spots', `?code=eq.${encodeURIComponent(code)}`);
+  }
+};
+
+// ── Vue App ────────────────────────────────────────────
+const { createApp, ref, computed, onMounted, watch } = Vue;
+const { showSuccessToast, showFailToast, showConfirmDialog } = vant;
+
+createApp({
+  setup() {
+    const page = ref('home');
+    const activeTab = ref(0);
+    const TAB_PAGES = ['home', 'map', 'find', 'more'];
+    const goPage = p => { page.value = p; };
+    const onTab = i => { page.value = TAB_PAGES[i]; };
+    watch(page, p => { const i = TAB_PAGES.indexOf(p); if (i >= 0) activeTab.value = i; });
+
+    const spots = ref([]);
+    const vehicles = ref([]);
+    const history = ref([]);
+    const currentList = ref([]);
+    const stats = ref({ total: 0, occupied: 0, available: 0, vehicles: 0 });
+
+    const spotsByZone = computed(() => {
+      const m = {};
+      spots.value.forEach(s => {
+        if (!m[s.zone_name]) m[s.zone_name] = { name: s.zone_name, spots: [] };
+        m[s.zone_name].spots.push(s);
+      });
+      return Object.values(m).sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+    });
+
+    const refreshAll = async () => {
+      try {
+        const [s, v, h, c, st] = await Promise.all([
+          api.getSpots(), api.getVehicles(), api.getHistory(), api.getCurrent(), api.getStats()
+        ]);
+        spots.value = s; vehicles.value = v; history.value = h; currentList.value = c; stats.value = st;
+      } catch(e) { showFailToast('加载失败：' + e.message); }
+    };
+    onMounted(refreshAll);
+
+    const pad = n => String(n).padStart(2, '0');
+    const fmtTime = ts => {
+      if (!ts) return '—';
+      const d = new Date(ts), now = new Date(), df = now - d;
+      if (isNaN(df)) return ts;
+      if (df < 60000) return '刚刚';
+      if (df < 3600000) return Math.floor(df / 60000) + '分钟前';
+      if (df < 86400000) return '今天 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    };
+    const shortCode = code => code.split('-').pop() || code;
+    const recentHistory = computed(() => history.value.slice(0, 12));
+
+    // 车位详情
+    const spotDlg = ref({ show: false, spot: null });
+    const openSpotDetail = s => { spotDlg.value = { show: true, spot: s }; };
+    const parkAtSpot = code => { spotDlg.value.show = false; parkForm.value.selectedSpot = code; parkForm.value.preSpot = code; goPage('park'); };
+
+    // 停车登记
+    const parkForm = ref({ operator: localStorage.getItem('op') || '', plateInput: '', plate: '', selectedSpot: '', preSpot: '' });
+    const showSug = ref(false);
+    const plateSuggestions = computed(() => {
+      const q = parkForm.value.plateInput.toUpperCase().trim();
+      return q ? vehicles.value.filter(v => v.plate.includes(q)).slice(0, 6) : [];
+    });
+    const onPlateInput = () => { parkForm.value.plate = ''; showSug.value = true; };
+    const selectPlate = p => { parkForm.value.plate = p; parkForm.value.plateInput = p; showSug.value = false; };
+    const selectSpot = c => { parkForm.value.selectedSpot = c; };
+
+    const submitPark = async () => {
+      const plate = (parkForm.value.plate || parkForm.value.plateInput).toUpperCase().trim();
+      if (!plate) return showFailToast('请输入车牌号');
+      if (!parkForm.value.selectedSpot) return showFailToast('请选择车位');
+      if (parkForm.value.operator) localStorage.setItem('op', parkForm.value.operator);
+      try {
+        await api.park(plate, parkForm.value.selectedSpot, parkForm.value.operator);
+        showSuccessToast(plate + ' 已停入 ' + parkForm.value.selectedSpot);
+        parkForm.value = { operator: parkForm.value.operator, plateInput: '', plate: '', selectedSpot: '', preSpot: '' };
+        await refreshAll(); goPage('home');
+      } catch(e) { showFailToast(e.message); }
+    };
+
+    // 找车
+    const findInput = ref('');
+    const findResult = ref(null);
+    const doFind = async () => {
+      const plate = findInput.value.toUpperCase().trim();
+      if (!plate) return;
+      findResult.value = await api.find(plate);
+    };
+
+    // 出场登记
+    const leaveForm = ref({ operator: localStorage.getItem('op') || '', plateInput: '', plate: '' });
+    const filteredCurrent = computed(() => {
+      const q = leaveForm.value.plateInput.toUpperCase().trim();
+      return q ? currentList.value.filter(x => x.plate.includes(q)) : currentList.value;
+    });
+    const submitLeave = async () => {
+      const plate = (leaveForm.value.plate || leaveForm.value.plateInput).toUpperCase().trim();
+      if (!plate) return showFailToast('请选择或输入车牌号');
+      try { await showConfirmDialog({ title: '确认出场', message: plate + ' 确认出场？' }); } catch { return; }
+      if (leaveForm.value.operator) localStorage.setItem('op', leaveForm.value.operator);
+      await api.leave(plate, leaveForm.value.operator);
+      showSuccessToast(plate + ' 已出场');
+      leaveForm.value = { operator: leaveForm.value.operator, plateInput: '', plate: '' };
+      await refreshAll(); goPage('home');
+    };
+    const quickLeave = async plate => {
+      spotDlg.value.show = false;
+      try { await showConfirmDialog({ title: '确认出场', message: plate + ' 确认出场？' }); } catch { return; }
+      await api.leave(plate, '');
+      showSuccessToast(plate + ' 已出场');
+      await refreshAll();
+    };
+
+    // 车辆台账
+    const vSearch = ref('');
+    const showAddVehicleDlg = ref(false);
+    const newVehicle = ref({ plate: '', type: '', owner: '' });
+    const filteredVehicles = computed(() => {
+      const q = vSearch.value.toLowerCase();
+      return q ? vehicles.value.filter(v => v.plate.toLowerCase().includes(q) || v.owner.toLowerCase().includes(q)) : vehicles.value;
+    });
+    const addVehicle = async () => {
+      if (!newVehicle.value.plate) return showFailToast('请输入车牌号');
+      try {
+        await api.addVehicle(newVehicle.value.plate.toUpperCase().trim(), newVehicle.value.type, newVehicle.value.owner);
+        showSuccessToast('添加成功'); showAddVehicleDlg.value = false;
+        newVehicle.value = { plate: '', type: '', owner: '' }; await refreshAll();
+      } catch(e) { showFailToast(e.message); }
+    };
+    const delVehicle = async plate => {
+      try { await showConfirmDialog({ title: '删除车辆', message: '确认删除 ' + plate + '？' }); } catch { return; }
+      await api.delVehicle(plate); showSuccessToast('已删除'); await refreshAll();
+    };
+
+    // 车位管理
+    const newSpot = ref({ zone: '', code: '' });
+    const addSpot = async () => {
+      if (!newSpot.value.code || !newSpot.value.zone) return showFailToast('请填写区域和编号');
+      try {
+        await api.addSpot(newSpot.value.code.trim(), newSpot.value.zone.trim());
+        showSuccessToast('添加成功'); newSpot.value = { zone: '', code: '' }; await refreshAll();
+      } catch(e) { showFailToast(e.message); }
+    };
+    const delSpot = async s => {
+      if (s.plate) return showFailToast('该车位有车辆停放，无法删除');
+      try { await showConfirmDialog({ title: '删除车位', message: '确认删除 ' + s.code + '？' }); } catch { return; }
+      try { await api.delSpot(s.code); showSuccessToast('已删除'); await refreshAll(); } catch(e) { showFailToast(e.message); }
+    };
+
+    return {
+      page, activeTab, goPage, onTab,
+      spots, vehicles, history, currentList, stats, spotsByZone, recentHistory,
+      shortCode, fmtTime,
+      spotDlg, openSpotDetail, parkAtSpot, quickLeave,
+      parkForm, showSug, plateSuggestions, onPlateInput, selectPlate, selectSpot, submitPark,
+      findInput, findResult, doFind,
+      leaveForm, filteredCurrent, submitLeave,
+      vSearch, showAddVehicleDlg, newVehicle, filteredVehicles, addVehicle, delVehicle,
+      newSpot, addSpot, delSpot
+    };
+  }
+}).use(vant).mount('#app');
+</script>
+</body>
+</html>
